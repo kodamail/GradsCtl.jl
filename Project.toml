@@ -3,6 +3,10 @@ uuid = "1fd4449f-8207-4b0c-9de1-c6c95dd56a43"
 authors = ["Chihiro Kodama"]
 version = "0.1.0"
 
+[deps]
+FortranFiles = "c58ffaec-ab22-586d-bfc5-781a99fd0b10"
+NetCDF = "30363a11-5582-574a-97bb-aa9a979735b9"
+
 [compat]
 julia = "1.4.1"
 
