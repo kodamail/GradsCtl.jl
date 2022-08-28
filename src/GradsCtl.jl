@@ -2,12 +2,13 @@ module GradsCtl
 
 using NetCDF
 using FortranFiles
+using Dates
 
 export GradsCtlFile
 
 export gcopen
-export gcslice
-
+#export gcslice
+export gcslicewrite
 
 mutable struct GradsCtlFile
     fname::String
@@ -51,7 +52,9 @@ mutable struct GradsCtlFile
 	        "num"      => 0,
 		"type"     => "",
 		"start"    => "",
-		"interval" => ""
+#		"interval" => ""
+		"interval" => 0,
+		"interval_unit" => ""
 	    ),
 	    "vars" => Dict(
 	        "num" => 0,
@@ -61,37 +64,6 @@ mutable struct GradsCtlFile
         return self
     end
 end
-
-#mutable struct GradsCtlFileInfoOptions
-#    template::Bool
-#end
-#=
-mutable struct GradsCtlFileInfoTdef
-    num::Integer
-    
-    function GradsCtlFileInfoTdef()
-        self = new()
-	self.num = 0
-	return self
-    end
-end
-=#
-
-#=
-mutable struct GradsCtlFileInfo
-#    tdef::Integer
-    values::Dict{ String, Vector{String} }
-#    options::GradsCtlFileInfoOptions
-    tdef::GradsCtlFileInfoTdef
-#    chsub  <- array
-
-    function GradsCtlFileInfo()
-        self = new()
-	self.tdef = GradsCtlFileInfoTdef()
-	return self
-    end
-end
-=#
 
 
 function gcopen( ctl_fname )
@@ -155,10 +127,11 @@ function gcopen( ctl_fname )
 	        gc.info["tdef"]["varname"] = words[2]
                 popfirst!( words )
 	    end
-            gc.info["tdef"]["num"]      = parse( Int, words[2] )
-            gc.info["tdef"]["type"]     = lowercase( words[3] )
-            gc.info["tdef"]["start"]    = lowercase( words[4] )
-            gc.info["tdef"]["interval"] = lowercase( words[5] )
+            gc.info["tdef"]["num"]           = parse( Int, words[2] )
+            gc.info["tdef"]["type"]          = lowercase( words[3] )
+            gc.info["tdef"]["start"]         = lowercase( words[4] )
+            gc.info["tdef"]["interval"]      = parse(Int,words[5][1:end-2])
+            gc.info["tdef"]["interval_unit"] = lowercase(words[5][end-1:end])
 	    continue
 	end
 
@@ -206,19 +179,119 @@ function gcopen( ctl_fname )
 end
 
 
-function gcslice( gc::GradsCtlFile, t::Integer )
-#    print( t )
+#function gcslice( gc::GradsCtlFile, t::Integer )
+function gcslicewrite( gc::GradsCtlFile,
+    	 	       varname::String,
+    	 	       out_fname::String;
+		       ymd_range::String="",
+		       t_int::Integer=1 )
 
-    # TODO: determine files and slice range
-    fname = "/ext/crmnas/work13/kodama/www/cmip6/g/g09f_2000/data_ll/02560x01280.zorg.torg/2000/ms_u_p850/ms_u_p850_200001.nc"
+    # analyze ymd_range
+    if ymd_range == ""
+        return
+    end
 
-    # read data
-    v = ncread( fname, "ms_u_p850", start=[1,1,1,t], count=[-1,-1,-1,1] )
+    m = match( r"(?<incflag_start>.)(?<date_start>\d+):(?<date_end>\d+)(?<incflag_end>.)", ymd_range )
+    if m === nothing
+        println( "Error: invalid ymd_range: $ymd_range" )
+        return
+    end
+    datetime_start = DateTime( m[:date_start], dateformat"yyyymmdd" )
+    datetime_end   = DateTime( m[:date_end], dateformat"yyyymmdd" )
+    incflag_start = m[:incflag_start] == "(" ? false : true
+    incflag_end   = m[:incflag_end]   == ")" ? false : true
+
+#    println(datetime_start)
+#    println(datetime_end)
+#    println(incflag_start)
+#    println(incflag_end)
+
+    # determine timestep
+    # Currently, no flexibility...
+    datetime_ctl_start = DateTime( gc.info["tdef"]["start"], dateformat"HH:MMzdduuuyyyy")
+#    println( datetime_ctl_start )  # t = 1
+#    ctl_datetime_start = replace( gc.info["tdef"]["start"], r"[](?<ymd>\d[^\d][^\d][^\d][\d][\d][\d][\d]#" => s"0\g<day>" )
 
 
-    # write data
-    fid = FortranFile( "test.grd", "w", access="direct", recl=4*2560*1280, convert="little-endian" )
-    write( fid, rec=1, v )
+    if gc.info["tdef"]["interval_unit"] == "hr"
+        dstep = Dates.value( datetime_start - datetime_ctl_start ) / 1000 / 60 / 60 / gc.info["tdef"]["interval"]
+        if dstep != floor(dstep)
+	    println( "Error: start date does not exist in the data: $date_start" )
+	    return
+	end
+	t_start = ( ( incflag_start == true ) ? 1 : 2 ) + Int( dstep )
+#	println( t_start )
+
+        dstep = Dates.value( datetime_end - datetime_ctl_start ) / 1000 / 60 / 60 / gc.info["tdef"]["interval"]
+        if dstep != floor(dstep)
+	    println( "Error: end date does not exist in the data: $date_end" )
+	    return
+	end
+	t_end = ( ( incflag_end == true ) ? 1 : 0 ) + Int( dstep )
+#	println( t_end )
+    else
+        println( "Error: non-supported time interval: ", gc.info["tdef"]["interval"] )
+        return
+    end
+
+    # determine files and timestep range for each
+    str_array  = Array{String}(undef,0)
+    tmin_array  = Array{Int}(undef,0)
+    tmax_array  = Array{Int}(undef,0)
+    for chsub in gc.info["chsub"]
+#	tmin = -1
+#	tmax = -1
+	( tmin, tmax ) = ( -1, -1 )
+
+        if t_start <= chsub["start"]
+	    tmin = chsub["start"]
+        elseif t_start <= chsub["end"]
+	    tmin = t_start
+	end
+
+        if t_end >= chsub["end"]
+	    tmax = chsub["end"]
+        elseif t_end >= chsub["start"]
+	    tmax = t_end
+	end
+
+        if tmin > 0 && tmax > 0
+            println(chsub)
+            println( "(absolute) tmin:", tmin, "  tmax:", tmax )
+	    tmin = tmin - chsub["start"] + 1  # absolute -> relative
+	    tmax = tmax - chsub["start"] + 1  # absolute -> relative
+            println( "(relative) tmin:", tmin, "  tmax:", tmax )
+
+        # TODO: push necessary timestep for each files...
+	# be careful: treatment of skip with separated files...
+	    push!( str_array,  chsub["str"] )
+	    push!( tmin_array, tmin )
+	    push!( tmax_array, tmax )
+        end
+    end
+
+    fid = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert="little-endian" )
+
+    tall = 0   # current absolute timestep - 1
+    pos = 1
+    for ( str, tmin, tmax ) in zip( str_array, tmin_array, tmax_array )
+        println( tmin, ", ", tmax, ", ", str )
+        dir = replace( gc.fname, r"/[^/]+$" => "" )
+        fname = replace( gc.info["dset"], r"%ch" => str )
+        fname = replace( fname, r"^\^" => dir * "/" )
+
+        # read data
+	for t = tmin:tmax
+	    if( tall % t_int == 0 )
+                println( t, "(", tall, ")" )
+                v = ncread( fname, varname, start=[1,1,1,t], count=[-1,-1,-1,1] )
+                write( fid, rec=pos, v )
+		pos = pos + 1
+	    end
+	    tall = tall + 1
+	end  # loop: t
+    end  # loop: chsub
+    
     close( fid )
 end
 
