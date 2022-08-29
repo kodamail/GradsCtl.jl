@@ -4,6 +4,8 @@ using NetCDF
 using FortranFiles
 using Dates
 
+# include("abc.jl")
+
 export GradsCtlFile
 
 export gcopen
@@ -24,7 +26,7 @@ mutable struct GradsCtlFile
 	    ),
 	    "chsub" => [],  # Dict( "start" => 0, "end" => 0, "str" => "" )
             "xdef" => Dict(
-	        "varname"  => "", # for NetCDF
+	        "varname"  => "",
 	        "num"      => 0,
 		"type"     => "",
 		"start"    => 0,
@@ -32,7 +34,7 @@ mutable struct GradsCtlFile
 		"levels"   => []
 	    ),
             "ydef" => Dict(
-	        "varname"  => "", # for NetCDF
+	        "varname"  => "",
 	        "num"      => 0,
 		"type"     => "",
 		"start"    => 0,
@@ -40,7 +42,7 @@ mutable struct GradsCtlFile
 		"levels"   => []
 	    ),
             "zdef" => Dict(
-	        "varname"  => "", # for NetCDF
+	        "varname"  => "",
 	        "num"      => 0,
 		"type"     => "",
 		"start"    => 0,
@@ -48,11 +50,10 @@ mutable struct GradsCtlFile
 		"levels"   => []
 	    ),
             "tdef" => Dict(
-	        "varname"  => "", # for NetCDF
+	        "varname"  => "",
 	        "num"      => 0,
 		"type"     => "",
 		"start"    => "",
-#		"interval" => ""
 		"interval" => 0,
 		"interval_unit" => ""
 	    ),
@@ -68,11 +69,10 @@ end
 
 function gcopen( ctl_fname )
     gc = GradsCtlFile( ctl_fname )
-    #g.fname = fname
 
     #----- Analysis of control file -----#
 
-    mul_key = ""  # for multiple line statement
+    mul_status = ""  # status for multiple line statement
     for line in eachline( gc.fname )
 #        println( line )
 
@@ -83,10 +83,10 @@ function gcopen( ctl_fname )
 	    continue
 	end
 
-   	#----- multiple line statement -----#
-        if mul_key == "vars"
+   	#----- multiple-line statement -----#
+        if mul_status == "vars"
             if occursin( r"^endvars"i, words[1] )
-	        mul_key = ""
+	        mul_status = ""
 		continue
 	    end
 
@@ -98,8 +98,8 @@ function gcopen( ctl_fname )
 	    continue
 	end
 
-        #----- single line statement -----#
-	mul_key = ""
+        #----- single-line statement -----#
+	mul_status = ""
 
         # DSET
         if occursin( r"^dset"i, words[1] )
@@ -116,7 +116,7 @@ function gcopen( ctl_fname )
                     gc.info["options"]["template"] = true
 		    continue
 		end
-                println("Partly ignored ($word) in $line")
+                error( "\"$word\" is not supported in $words[1]")
             end
 	    continue
 	end
@@ -141,23 +141,27 @@ function gcopen( ctl_fname )
 	       "start" => parse( Int, words[2]),
 	       "end"   => parse( Int, words[3]),
 	       "str"   => words[4] ) )
+	   # check continuity of timestep
+	   if length( gc.info["chsub"] ) == 1
+	       if gc.info["chsub"][end]["start"] != 1
+	           error( "Time step of chsub must start from 1 (!=", gc.info["chsub"][end]["start"], ")" )
+	       end
+	   else
+	       if gc.info["chsub"][end]["start"] != gc.info["chsub"][end-1]["end"] + 1
+	           error( "chsub is not continuous: From ", gc.info["chsub"][end-1] , " To ", gc.info["chsub"][end] )
+               end
+	   end
            continue
         end
 
 	# VARS
         if occursin( r"^vars"i, words[1] )
             gc.info["vars"]["num"] = parse( Int, words[2] )
-	    mul_key = "vars"
+	    mul_status = "vars"
 	    continue
 	end
 
-#	for word in eachsplit( line )  # julia >= 1.8.0
-#        for word in words
-#            println( "  -> $word" )
-#	end
-#	return
-
-        println( "Ignored: $line" )
+        error( "Fail to analyze \"$line\"" )
     end
 
 
@@ -179,7 +183,8 @@ function gcopen( ctl_fname )
 end
 
 
-#function gcslice( gc::GradsCtlFile, t::Integer )
+#TODO: function gcslice: same as gslicewrite but returning array instead of file output
+
 function gcslicewrite( gc::GradsCtlFile,
     	 	       varname::String,
     	 	       out_fname::String;
@@ -193,18 +198,17 @@ function gcslicewrite( gc::GradsCtlFile,
 
     m = match( r"(?<incflag_start>.)(?<date_start>\d+):(?<date_end>\d+)(?<incflag_end>.)", ymd_range )
     if m === nothing
-        println( "Error: invalid ymd_range: $ymd_range" )
-        return
+        error( "Invalid ymd_range: $ymd_range" )
     end
     datetime_start = DateTime( m[:date_start], dateformat"yyyymmdd" )
     datetime_end   = DateTime( m[:date_end], dateformat"yyyymmdd" )
     incflag_start = m[:incflag_start] == "(" ? false : true
     incflag_end   = m[:incflag_end]   == ")" ? false : true
 
-#    println(datetime_start)
-#    println(datetime_end)
-#    println(incflag_start)
-#    println(incflag_end)
+    #println(datetime_start)
+    #println(datetime_end)
+    #println(incflag_start)
+    #println(incflag_end)
 
     # determine timestep
     # Currently, no flexibility...
@@ -216,22 +220,31 @@ function gcslicewrite( gc::GradsCtlFile,
     if gc.info["tdef"]["interval_unit"] == "hr"
         dstep = Dates.value( datetime_start - datetime_ctl_start ) / 1000 / 60 / 60 / gc.info["tdef"]["interval"]
         if dstep != floor(dstep)
-	    println( "Error: start date does not exist in the data: $date_start" )
-	    return
+	    error( "Date of start does not exist in the data: $date_start" )
 	end
 	t_start = ( ( incflag_start == true ) ? 1 : 2 ) + Int( dstep )
-#	println( t_start )
+	println( t_start )
 
         dstep = Dates.value( datetime_end - datetime_ctl_start ) / 1000 / 60 / 60 / gc.info["tdef"]["interval"]
         if dstep != floor(dstep)
-	    println( "Error: end date does not exist in the data: $date_end" )
-	    return
+	    error( "Date of end does not exist in the data: $date_end" )
 	end
 	t_end = ( ( incflag_end == true ) ? 1 : 0 ) + Int( dstep )
-#	println( t_end )
+	println( t_end )
     else
-        println( "Error: non-supported time interval: ", gc.info["tdef"]["interval"] )
-        return
+        error( "Non-supported time interval: ", gc.info["tdef"]["interval"] )
+    end
+
+    if t_start > t_end
+        error( "Start timestep is later than end time step:", t_start, ", ", t_end )
+    end
+
+    if t_start < 1
+        error( "Start timestep is less than 1: ", t_start )
+    end
+
+    if t_end > gc.info["tdef"]["num"]
+        error("End timestep is greater than tdef (=", gc.info["tdef"]["num"], "): ", t_end)
     end
 
     # determine files and timestep range for each
@@ -239,8 +252,6 @@ function gcslicewrite( gc::GradsCtlFile,
     tmin_array  = Array{Int}(undef,0)
     tmax_array  = Array{Int}(undef,0)
     for chsub in gc.info["chsub"]
-#	tmin = -1
-#	tmax = -1
 	( tmin, tmax ) = ( -1, -1 )
 
         if t_start <= chsub["start"]
@@ -261,9 +272,6 @@ function gcslicewrite( gc::GradsCtlFile,
 	    tmin = tmin - chsub["start"] + 1  # absolute -> relative
 	    tmax = tmax - chsub["start"] + 1  # absolute -> relative
             println( "(relative) tmin:", tmin, "  tmax:", tmax )
-
-        # TODO: push necessary timestep for each files...
-	# be careful: treatment of skip with separated files...
 	    push!( str_array,  chsub["str"] )
 	    push!( tmin_array, tmin )
 	    push!( tmax_array, tmax )
@@ -297,13 +305,12 @@ end
 
 
 
-end  # module
+end  # end of module
 
 
 # export JULIA_REVISE_POLL=1
 
 # (@v1.4) pkg> dev .
-### (@v1.4) pkg> dev /home/kodama/data/program/julia/GradsCtl
 
 # julia> using Revise
 
