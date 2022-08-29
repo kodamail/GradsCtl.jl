@@ -189,26 +189,40 @@ function gcslicewrite( gc::GradsCtlFile,
     	 	       varname::String,
     	 	       out_fname::String;
 		       ymd_range::String="",
+		       cal_range::String="",
 		       t_int::Integer=1 )
 
     # analyze ymd_range
-    if ymd_range == ""
-        return
+    if ymd_range != ""
+        m = match( r"(?<incflag_start>.)(?<date_start>\d+):(?<date_end>\d+)(?<incflag_end>.)", ymd_range )
+        if m === nothing
+            error( "Invalid ymd_range: $ymd_range" )
+        end
+        datetime_start = DateTime( m[:date_start], dateformat"yyyymmdd" )
+        datetime_end   = DateTime( m[:date_end], dateformat"yyyymmdd" )
+        incflag_start = m[:incflag_start] == "(" ? false : true
+        incflag_end   = m[:incflag_end]   == ")" ? false : true
+    
+    elseif cal_range != ""
+        m = match( r"(?<incflag_start>.)(?<date_start>\d+)\.(?<hms_start>\d+):(?<date_end>\d+)\.(?<hms_end>\d+)(?<incflag_end>.)", cal_range )
+        if m === nothing
+            error( "Invalid cal_range: $cal_range" )
+        end
+        datetime_start = DateTime( m[:date_start]*m[:hms_start], dateformat"yyyymmddHHMMSS" )
+        datetime_end   = DateTime( m[:date_end]*m[:hms_end], dateformat"yyyymmddHHMMSS" )
+        incflag_start = m[:incflag_start] == "(" ? false : true
+        incflag_end   = m[:incflag_end]   == ")" ? false : true
+        
+    else
+	error("Time range is not specified.")
     end
 
-    m = match( r"(?<incflag_start>.)(?<date_start>\d+):(?<date_end>\d+)(?<incflag_end>.)", ymd_range )
-    if m === nothing
-        error( "Invalid ymd_range: $ymd_range" )
-    end
-    datetime_start = DateTime( m[:date_start], dateformat"yyyymmdd" )
-    datetime_end   = DateTime( m[:date_end], dateformat"yyyymmdd" )
-    incflag_start = m[:incflag_start] == "(" ? false : true
-    incflag_end   = m[:incflag_end]   == ")" ? false : true
 
-    #println(datetime_start)
-    #println(datetime_end)
-    #println(incflag_start)
-    #println(incflag_end)
+#    println(datetime_start)
+#    println(datetime_end)
+#    println(incflag_start)
+#    println(incflag_end)
+#error()
 
     # determine timestep
     # Currently, no flexibility...
