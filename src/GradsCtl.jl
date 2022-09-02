@@ -190,7 +190,8 @@ function gcslicewrite( gc::GradsCtlFile,
     	 	       out_fname::String;
 		       ymd_range::String="",
 		       cal_range::String="",
-		       t_int::Integer=1 )
+		       t_int::Integer=1,
+		       out_endian::String="native")  # "little-endian" or "big-endian"
 
     # resolve varname if necessary
     for elem in gc.info["vars"]["elem"]
@@ -299,7 +300,7 @@ function gcslicewrite( gc::GradsCtlFile,
         end
     end
 
-    fid = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert="little-endian" )
+    fid = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert=out_endian )
 
     tall = 0   # current absolute timestep - 1
     pos = 1
