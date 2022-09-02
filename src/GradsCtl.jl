@@ -192,6 +192,13 @@ function gcslicewrite( gc::GradsCtlFile,
 		       cal_range::String="",
 		       t_int::Integer=1 )
 
+    # resolve varname if necessary
+    for elem in gc.info["vars"]["elem"]
+        if varname == elem["gradsvarname"]
+	    varname = elem["varname"]
+	end
+    end
+
     # analyze ymd_range
     if ymd_range != ""
         m = match( r"(?<incflag_start>.)(?<date_start>\d+):(?<date_end>\d+)(?<incflag_end>.)", ymd_range )
