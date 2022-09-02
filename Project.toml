@@ -1,7 +1,7 @@
 name = "GradsCtl"
-uuid = "1fd4449f-8207-4b0c-9de1-c6c95dd56a43"
+uuid = "35dda292-7e32-446a-b1f1-7a33224612ee"
 authors = ["Chihiro Kodama"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
