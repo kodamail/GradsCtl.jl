@@ -21,10 +21,14 @@ mutable struct GradsCtlFile
 	self.fname = fname
 	self.info = Dict(
 	    "dset" => "",
+	    "chsub" => [],  # Dict( "start" => 0, "end" => 0, "str" => "" )
+	    # TODO: dtype, index, stnmap, title,
+	    "undef" => nothing,
+	    # TODO: unpack, fileheader, XYHEADER, XYTRAILER, THEADER, HEADERBYTES, TRAILERBYTES, XVAR, YVAR, ZVAR, STID, TVAR, TOFFVAR, CACHESIZE, 
             "options" => Dict(
 	        "template" => false
 	    ),
-	    "chsub" => [],  # Dict( "start" => 0, "end" => 0, "str" => "" )
+	    #TODO: pdef
             "xdef" => Dict(
 	        "varname"  => "",
 	        "num"      => 0,
@@ -57,16 +61,23 @@ mutable struct GradsCtlFile
 		"interval" => 0,
 		"interval_unit" => ""
 	    ),
+	    # TODO: EDEF, VECTORPAIRS
 	    "vars" => Dict(
 	        "num" => 0,
 		"elem" => []  # Dict( "varname" > "",  )
 	    )
+	    # TODO: ATTRIBUTE METADATA
         )
         return self
     end
 end
 
 
+"""
+    gcopen( ctl_fname )
+
+Open and analyze a GrADS control file
+"""
 function gcopen( ctl_fname )
     gc = GradsCtlFile( ctl_fname )
 
@@ -105,6 +116,12 @@ function gcopen( ctl_fname )
         if occursin( r"^dset"i, words[1] )
 	    gc.info["dset"] = words[2]
 	    continue
+	end
+
+        # UNDEF
+        if occursin( r"^undef"i, words[1] )
+	    gc.info["undef"] = parse( Float32, replace( words[2], r"f$" => "" ) )
+            continue
 	end
 
 	# OPTIONS
