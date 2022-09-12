@@ -142,7 +142,8 @@ function gcopen( ctl_fname )
 	       "start" => parse( Int, words[2]),
 	       "end"   => parse( Int, words[3]),
 	       "str"   => words[4] ) )
-	   # check continuity of timestep
+	       
+	   # Check continuity of timestep
 	   if length( gc.info["chsub"] ) == 1
 	       if gc.info["chsub"][end]["start"] != 1
 	           error( "Time step of chsub must start from 1 (!=", gc.info["chsub"][end]["start"], ")" )
@@ -165,6 +166,13 @@ function gcopen( ctl_fname )
         error( "Fail to analyze \"$line\"" )
     end
 
+    #----- Check consistency -----#
+    if length( gc.info["chsub"] ) > 0
+        if gc.info["tdef"]["num"] != gc.info["chsub"][end]["end"]
+	    println( "Warning: The maximum timestep of CHSUB (", gc.info["chsub"][end]["end"], ") does not match the number of TDEF (", gc.info["tdef"]["num"], ")." )
+	end
+    end
+    
     #----- Determine the data type (flat binary, NetCDF, ...) -----#
     if occursin( r"\.nc$"i, gc.info["dset"] )
         gc.ftype = "NetCDF"
@@ -281,17 +289,22 @@ function gcslicewrite( gc::GradsCtlFile,
     end
 
     if t_start > t_end
-        error( "Start timestep is later than end time step:", t_start, ", ", t_end )
+        error( "Start timestep (", t_start, ") is later than end time step (", t_end, ")" )
     end
 
     if t_start < 1
-        error( "Start timestep is less than 1: ", t_start )
+        error( "Start timestep (", t_start, ") is less than 1: " )
     end
 
     if t_end > gc.info["tdef"]["num"]
-        error("End timestep is greater than tdef (=", gc.info["tdef"]["num"], "): ", t_end)
+        error( "End timestep (", t_end, ") is greater than tdef (", gc.info["tdef"]["num"], ")." )
     end
-    # TODO: max(chsub_max_tstep) check
+
+    if length( gc.info["chsub"] ) > 0
+        if t_end > gc.info["chsub"][end]["end"]
+	    error( "End timestep (", t_end, ") is greater than the maximum timestep of CHSUB (", gc.info["chsub"][end]["end"], ")." )
+	end
+    end
 
     #----- Input/output file management -----#
     
