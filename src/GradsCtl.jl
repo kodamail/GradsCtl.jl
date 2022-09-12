@@ -4,73 +4,13 @@ using NetCDF
 using FortranFiles
 using Dates
 
-# include("abc.jl")
+include("GradsCtlFile.jl")
 
 export GradsCtlFile
 
 export gcopen
 #export gcslice
 export gcslicewrite
-
-mutable struct GradsCtlFile
-    fname::String
-    info::Dict{String,Any}
-
-    function GradsCtlFile( fname )
-        self = new()
-	self.fname = fname
-	self.info = Dict(
-	    "dset" => "",
-	    "chsub" => [],  # Dict( "start" => 0, "end" => 0, "str" => "" )
-	    # TODO: dtype, index, stnmap, title,
-	    "undef" => nothing,
-	    # TODO: unpack, fileheader, XYHEADER, XYTRAILER, THEADER, HEADERBYTES, TRAILERBYTES, XVAR, YVAR, ZVAR, STID, TVAR, TOFFVAR, CACHESIZE, 
-            "options" => Dict(
-	        "template" => false
-	    ),
-	    #TODO: pdef
-            "xdef" => Dict(
-	        "varname"  => "",
-	        "num"      => 0,
-		"type"     => "",
-		"start"    => 0,
-		"interval" => 0,
-		"levels"   => []
-	    ),
-            "ydef" => Dict(
-	        "varname"  => "",
-	        "num"      => 0,
-		"type"     => "",
-		"start"    => 0,
-		"interval" => 0,
-		"levels"   => []
-	    ),
-            "zdef" => Dict(
-	        "varname"  => "",
-	        "num"      => 0,
-		"type"     => "",
-		"start"    => 0,
-		"interval" => 0,
-		"levels"   => []
-	    ),
-            "tdef" => Dict(
-	        "varname"  => "",
-	        "num"      => 0,
-		"type"     => "",
-		"start"    => "",
-		"interval" => 0,
-		"interval_unit" => ""
-	    ),
-	    # TODO: EDEF, VECTORPAIRS
-	    "vars" => Dict(
-	        "num" => 0,
-		"elem" => []  # Dict( "varname" > "",  )
-	    )
-	    # TODO: ATTRIBUTE METADATA
-        )
-        return self
-    end
-end
 
 
 """
@@ -86,7 +26,6 @@ function gcopen( ctl_fname )
     mul_status = ""  # status for multiple line statement
     for line in eachline( gc.fname )
 #        println( line )
-
 	words = split( line, " ", keepempty=false )
 
         # comment
@@ -202,6 +141,11 @@ end
 
 #TODO: function gcslice: same as gslicewrite but returning array instead of file output
 
+"""
+    gcslicewrite( gc, varname, out_fname, ...
+
+Write sliced data to a file
+"""
 function gcslicewrite( gc::GradsCtlFile,
     	 	       varname::String,
     	 	       out_fname::String;
@@ -210,14 +154,16 @@ function gcslicewrite( gc::GradsCtlFile,
 		       t_int::Integer=1,
 		       out_endian::String="native")  # "little-endian" or "big-endian"
 
-    # resolve varname if necessary
+    #-----Analyze argument -----#
+
+    # varname
     for elem in gc.info["vars"]["elem"]
         if varname == elem["gradsvarname"]
 	    varname = elem["varname"]
 	end
     end
 
-    # analyze ymd_range
+    # ymd_range, cal_range
     if ymd_range != ""
         m = match( r"(?<incflag_start>.)(?<date_start>\d+):(?<date_end>\d+)(?<incflag_end>.)", ymd_range )
         if m === nothing
@@ -285,7 +231,10 @@ function gcslicewrite( gc::GradsCtlFile,
     if t_end > gc.info["tdef"]["num"]
         error("End timestep is greater than tdef (=", gc.info["tdef"]["num"], "): ", t_end)
     end
+    # TODO: max(chsub_max_tstep) check
 
+    #----- Input/output file management -----#
+    
     # determine files and timestep range for each
     str_array  = Array{String}(undef,0)
     tmin_array  = Array{Int}(undef,0)
