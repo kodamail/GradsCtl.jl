@@ -34,21 +34,38 @@ function gcopen( ctl_fname )
 	end
 
    	#----- multiple-line statement -----#
+
+        # VARS
         if mul_status == "vars"
             if occursin( r"^endvars"i, words[1] )
 	        mul_status = ""
 		continue
 	    end
-
             varname = words[1]
             tmp = split( words[1], "=>", keepempty=false )
-            push!( gc.info["vars"]["elem"], Dict(
-	        "varname"      => tmp[1],
-	        "gradsvarname" => tmp[2] ) )
+	    if length(tmp) > 1
+                push!( gc.info["vars"]["elem"], Dict(
+                          "varname"      => tmp[1],
+	                  "gradsvarname" => tmp[2] ) )
+            end
+#	    if length( words ) > 2
+#	    end
 	    continue
+
+        # XDEF/YDEF/ZDEF
+        elseif mul_status == "xdef" || mul_status == "ydef" || mul_status == "zdef" 
+            if occursin( r"^[^0-9-.]", words[1] )
+	        mul_status = ""
+	    else
+               for word in words
+                    push!( gc.info[mul_status]["levels"], parse( Float32, word ) )
+	        end
+	        continue
+	    end
+	    
 	end
 
-        #----- single-line statement -----#
+        #----- single-line or start of muti-line statement -----#
 	mul_status = ""
 
         # DSET
@@ -63,18 +80,28 @@ function gcopen( ctl_fname )
             continue
 	end
 
-	# OPTIONS
-        if occursin( r"^options"i, words[1] )
-            for word in words[2:end]
-#                println( "  -> $word" )
-
-                if occursin( r"^template"i, word )
-                    gc.info["options"]["template"] = true
-		    continue
-		end
-                error( "\"$word\" is not supported in $words[1]")
-            end
-	    continue
+        # XDEF/YDEF/ZDEF
+        if occursin( r"^xdef|ydef|zdef$"i, words[1] )
+	    dim = lowercase( words[1] )
+            if tryparse( Int, words[2] ) == nothing
+	        gc.info[dim]["varname"] = words[2]
+                popfirst!( words )
+	    end
+            gc.info[dim]["num"]  = parse( Int, words[2] )
+            gc.info[dim]["type"] = lowercase( words[3] )
+	    if gc.info[dim]["type"] == "linear"
+                gc.info[dim]["start"]    = parse( Float32, words[4] )
+                gc.info[dim]["interval"] = parse( Float32, words[5] )
+	    elseif gc.info[dim]["type"] == "levels"
+                for word in words[4:end]
+                    push!( gc.info[dim]["levels"], parse( Float32, word ) )
+	        end
+                mul_status = dim
+                continue
+	    else
+                error( "Fail to analyze $dim: \"$line\"" )
+	    end
+            continue
 	end
 
 	# TDEF
@@ -88,6 +115,24 @@ function gcopen( ctl_fname )
             gc.info["tdef"]["start"]         = lowercase( words[4] )
             gc.info["tdef"]["interval"]      = parse(Int,words[5][1:end-2])
             gc.info["tdef"]["interval_unit"] = lowercase(words[5][end-1:end])
+	    continue
+	end
+
+	# OPTIONS
+        if occursin( r"^options"i, words[1] )
+            for word in words[2:end]
+                if occursin( r"^template"i, word )
+                    gc.info["options"]["template"] = true
+		    continue
+		elseif occursin( r"^big_endian"i, word )
+                    gc.info["options"]["endian"] = "big-endian"
+		    continue
+		elseif occursin( r"^little_endian"i, word )
+                    gc.info["options"]["endian"] = "little-endian"
+		    continue
+		end
+                error( "\"$word\" is not supported in $words[1]")
+            end
 	    continue
 	end
 
@@ -120,20 +165,28 @@ function gcopen( ctl_fname )
         error( "Fail to analyze \"$line\"" )
     end
 
-
-    #----- Additional analysis when the data are in NetCDF format -----#
+    #----- Determine the data type (flat binary, NetCDF, ...) -----#
+    if occursin( r"\.nc$"i, gc.info["dset"] )
+        gc.ftype = "NetCDF"
+    else
+        gc.ftype = ""  # flat binary
+    end
     
-    # Generate data file name for tstep=1
-    dir = replace( gc.fname, r"/[^/]+$" => "" )
-    dat_fname = gc.info["dset"]
-    dat_fname = replace( dat_fname, r"^\^" => "$dir/" )
-    dat_fname = replace( dat_fname, "%ch" => gc.info["chsub"][1]["str"] )
+    #----- Additional analysis when the data are in NetCDF format -----#
+    if gc.ftype == "NetCDF"
+        # Generate data file name for tstep=1
+        dir = replace( gc.fname, r"/[^/]+$" => "" )
+        dat_fname = gc.info["dset"]
+        dat_fname = replace( dat_fname, r"^\^" => "$dir/" )
+        dat_fname = replace( dat_fname, "%ch" => gc.info["chsub"][1]["str"] )
+	#TODO: %y4, %m2, ...
 
-    # Read metadata
-    nc = NetCDF.open( dat_fname, mode=NC_NOWRITE )
-    gc.info["xdef"]["num"] = size( nc["lon"], 1 )
-    gc.info["ydef"]["num"] = size( nc["lat"], 1 )
-    gc.info["zdef"]["num"] = size( nc["lev"], 1 )
+        # Read metadata
+        nc = NetCDF.open( dat_fname, mode=NC_NOWRITE )
+        gc.info["xdef"]["num"] = size( nc["lon"], 1 )
+        gc.info["ydef"]["num"] = size( nc["lat"], 1 )
+        gc.info["zdef"]["num"] = size( nc["lev"], 1 )
+    end
 
     return gc
 end
@@ -188,19 +241,26 @@ function gcslicewrite( gc::GradsCtlFile,
 	error("Time range is not specified.")
     end
 
-
 #    println(datetime_start)
 #    println(datetime_end)
 #    println(incflag_start)
 #    println(incflag_end)
 #error()
 
+    #----- Time management -----#
+    
     # determine timestep
-    # Currently, no flexibility...
-    datetime_ctl_start = DateTime( gc.info["tdef"]["start"], dateformat"HH:MMzdduuuyyyy")
-#    println( datetime_ctl_start )  # t = 1
-#    ctl_datetime_start = replace( gc.info["tdef"]["start"], r"[](?<ymd>\d[^\d][^\d][^\d][\d][\d][\d][\d]#" => s"0\g<day>" )
-
+    tmp = gc.info["tdef"]["start"]
+    if occursin( r"^[a-zA-Z]{3}\d+$", tmp )  # e.g. jan2010
+        tmp = "01" * tmp      # assume day=01
+    end
+    if occursin( r"^\d+[a-zA-Z]{3}\d+$", tmp )  # e.g. 01jan2010
+        tmp = "00:00z" * tmp  # assume 00:00
+    end
+    if occursin( r"^\d+z\d+[a-zA-Z]{3}\d+$"i, tmp )  # e.g. 06z01jan2010
+        tmp = replace( tmp, r"(?<hr>\d+)z"i => s"\g<hr>:00z" )  # assume min=00
+    end
+    datetime_ctl_start = DateTime( tmp, dateformat"HH:MMzdduuuyyyy")  # time at t=1
 
     if gc.info["tdef"]["interval_unit"] == "hr"
         dstep = Dates.value( datetime_start - datetime_ctl_start ) / 1000 / 60 / 60 / gc.info["tdef"]["interval"]
@@ -266,29 +326,38 @@ function gcslicewrite( gc::GradsCtlFile,
         end
     end
 
-    fid = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert=out_endian )
+    #----- Input/output files -----#
 
-    tall = 0   # current absolute timestep - 1
+    fid_out = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert=out_endian )
+
+    v = zeros( Float32, gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"] )
+    tall = 1   # current absolute timestep
     pos = 1
     for ( str, tmin, tmax ) in zip( str_array, tmin_array, tmax_array )
-        println( tmin, ", ", tmax, ", ", str )
         dir = replace( gc.fname, r"/[^/]+$" => "" )
         fname = replace( gc.info["dset"], r"%ch" => str )
         fname = replace( fname, r"^\^" => dir * "/" )
+        println( tmin, ", ", tmax, ", ", fname )
 
         # read data
 	for t = tmin:tmax
-	    if( tall % t_int == 0 )
+	    if (tall-1) % t_int == 0
                 println( t, "(", tall, ")" )
-                v = ncread( fname, varname, start=[1,1,1,t], count=[-1,-1,-1,1] )
-                write( fid, rec=pos, v )
+		if gc.ftype == "NetCDF"
+                    v = ncread( fname, varname, start=[1,1,1,t], count=[-1,-1,-1,1] )
+		else
+                    fid_in = FortranFile( fname, "r", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert=gc.info["options"]["endian"] )
+		    read( fid_in, rec=t, v )
+		end
+		
+                write( fid_out, rec=pos, v )
 		pos = pos + 1
 	    end
 	    tall = tall + 1
 	end  # loop: t
     end  # loop: chsub
     
-    close( fid )
+    close( fid_out )
 end
 
 
