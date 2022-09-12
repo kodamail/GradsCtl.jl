@@ -308,37 +308,41 @@ function gcslicewrite( gc::GradsCtlFile,
 
     #----- Input/output file management -----#
     
-    # determine files and timestep range for each
-    str_array  = Array{String}(undef,0)
-    tmin_array  = Array{Int}(undef,0)
-    tmax_array  = Array{Int}(undef,0)
-    for chsub in gc.info["chsub"]
-	( tmin, tmax ) = ( -1, -1 )
+    if length( gc.info["chsub"] ) > 0
+        # determine files and timestep range for each
+        str_array  = Array{String}(undef,0)
+        tmin_array  = Array{Int}(undef,0)
+        tmax_array  = Array{Int}(undef,0)
+        for chsub in gc.info["chsub"]
+            ( tmin, tmax ) = ( -1, -1 )
 
-        if t_start <= chsub["start"]
-	    tmin = chsub["start"]
-        elseif t_start <= chsub["end"]
-	    tmin = t_start
-	end
+            if t_start <= chsub["start"]
+                tmin = chsub["start"]
+                elseif t_start <= chsub["end"]
+	        tmin = t_start
+	    end
 
-        if t_end >= chsub["end"]
-	    tmax = chsub["end"]
-        elseif t_end >= chsub["start"]
-	    tmax = t_end
-	end
+            if t_end >= chsub["end"]
+	        tmax = chsub["end"]
+            elseif t_end >= chsub["start"]
+	        tmax = t_end
+	    end
 
-        if tmin > 0 && tmax > 0
-            println(chsub)
-            println( "(absolute) tmin:", tmin, "  tmax:", tmax )
-	    tmin = tmin - chsub["start"] + 1  # absolute -> relative
-	    tmax = tmax - chsub["start"] + 1  # absolute -> relative
-            println( "(relative) tmin:", tmin, "  tmax:", tmax )
-	    push!( str_array,  chsub["str"] )
-	    push!( tmin_array, tmin )
-	    push!( tmax_array, tmax )
+            if tmin > 0 && tmax > 0
+                println(chsub)
+                println( "(absolute) tmin:", tmin, "  tmax:", tmax )
+            tmin = tmin - chsub["start"] + 1  # absolute -> relative
+	        tmax = tmax - chsub["start"] + 1  # absolute -> relative
+                println( "(relative) tmin:", tmin, "  tmax:", tmax )
+                push!( str_array,  chsub["str"] )
+	        push!( tmin_array, tmin )
+	        push!( tmax_array, tmax )
+            end
         end
+    else
+        error( "Non-supported time type" )
     end
-
+    
     #----- Input/output files -----#
 
     fid_out = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert=out_endian )
