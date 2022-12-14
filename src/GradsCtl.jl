@@ -9,8 +9,8 @@ include("GradsCtlFile.jl")
 export GradsCtlFile
 
 export gcopen
-#export gcslice
-export gcslicewrite
+export gcslice
+export gcslicewrite  # alias of gcslice, for compatibility
 
 
 """
@@ -46,10 +46,10 @@ function gcopen( ctl_fname )
 	    if length(tmp) > 1
                 push!( gc.info["vars"]["elem"], Dict(
                           "varname"      => tmp[1],
-	                  "gradsvarname" => tmp[2] ) )
+	                  "gradsvarname" => tmp[2],
+			  "scale_factor" => 1.0f0,
+			  "add_offset"   => 0.0f0 ) )
             end
-#	    if length( words ) > 2
-#	    end
 	    continue
 
         # XDEF/YDEF/ZDEF
@@ -194,33 +194,75 @@ function gcopen( ctl_fname )
         gc.info["xdef"]["num"] = size( nc["lon"], 1 )
         gc.info["ydef"]["num"] = size( nc["lat"], 1 )
         gc.info["zdef"]["num"] = size( nc["lev"], 1 )
+
+        # Read variable name unless stored yet
+	if size( gc.info["vars"]["elem"], 1 ) == 0
+            for varname in keys(nc)
+	        if occursin( r"^lon|longitude|lat|latitude|lev|level|time$"i, varname )
+		    continue
+		end
+                push!( gc.info["vars"]["elem"], Dict(
+                          "varname"      => varname,
+	                  "gradsvarname" => varname,
+			  "scale_factor" => 1.0f0,
+			  "add_offset"   => 0.0f0 ) )
+            end
+
+	end
+	
+        # varname
+	for i=1:size(gc.info["vars"]["elem"],1)
+	    tmp = NetCDF.ncgetatt( dat_fname, gc.info["vars"]["elem"][i]["varname"], "scale_factor" )
+	    println(gc.info["vars"]["elem"][i])
+	    if tmp != nothing
+	        gc.info["vars"]["elem"][i]["scale_factor"] = tmp
+	    end
+	    tmp = NetCDF.ncgetatt( dat_fname, gc.info["vars"]["elem"][i]["varname"], "add_offset" )
+	    if tmp != nothing
+	        gc.info["vars"]["elem"][i]["add_offset"] = tmp
+	    end
+	    tmp = NetCDF.ncgetatt( dat_fname, gc.info["vars"]["elem"][i]["varname"], "_FillValue" )
+	    if tmp != nothing
+	        gc.info["vars"]["elem"][i]["_FillValue"] = tmp
+	    end	    
+	end
+
     end
 
     return gc
 end
 
 
-#TODO: function gcslice: same as gslicewrite but returning array instead of file output
-
 """
-    gcslicewrite( gc, varname, out_fname, ...
+    gcslice( gc, varname, out_fname, ...
 
 Write sliced data to a file
 """
-function gcslicewrite( gc::GradsCtlFile,
-    	 	       varname::String,
-    	 	       out_fname::String;
-		       ymd_range::String="",
-		       cal_range::String="",
-		       t_int::Integer=1,
-		       out_endian::String="native")  # "little-endian" or "big-endian"
+function gcslice( gc::GradsCtlFile,
+    	          varname::String,
+    	          out_fname::String="";
+		  #----- optional -----#
+		  # time
+		  ymd_range::String="",
+		  cal_range::String="",
+		  t_int::Integer=1,
+		  # output file
+		  out_endian::String="native"    # "little-endian" or "big-endian"
+		)
 
     #-----Analyze argument -----#
 
-    # varname
+    # resolve variable
+    scale_factor = 1.0f0
+    add_offset = 0.0f0
+    undef_val = ""
     for elem in gc.info["vars"]["elem"]
         if varname == elem["gradsvarname"]
-	    varname = elem["varname"]
+	    varname      = elem["varname"]
+	    scale_factor = elem["scale_factor"]
+	    add_offset   = elem["add_offset"]
+	    undef_val    = elem["_FillValue"]
+	    break
 	end
     end
 
@@ -345,7 +387,18 @@ function gcslicewrite( gc::GradsCtlFile,
     
     #----- Input/output files -----#
 
-    fid_out = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert=out_endian )
+    if out_fname == ""
+        action = "array"
+	#vret = Array{Int16}( undef, gc.info["xdef"]["num"], gc.info["ydef"]["num"], gc.info["zdef"]["num"], 0 )
+	#vret = Array{Int16}( undef, 0 )
+        vret = Array{Float32}( undef, 0 )
+#        vtmp = Array{Float32}( undef, gc.info["xdef"]["num"], gc.info["ydef"]["num"], gc.info["zdef"]["num"], 1 )
+	
+	println("ok: ", size(vret))
+    else
+        action = "write"
+        fid_out = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert=out_endian )
+    end
 
     v = zeros( Float32, gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"] )
     tall = 1   # current absolute timestep
@@ -356,9 +409,10 @@ function gcslicewrite( gc::GradsCtlFile,
         fname = replace( fname, r"^\^" => dir * "/" )
         println( tmin, ", ", tmax, ", ", fname )
 
-        # read data
 	for t = tmin:tmax
 	    if (tall-1) % t_int == 0
+
+                # read
                 println( t, "(", tall, ")" )
 		if gc.ftype == "NetCDF"
                     v = ncread( fname, varname, start=[1,1,1,t], count=[-1,-1,-1,1] )
@@ -367,16 +421,39 @@ function gcslicewrite( gc::GradsCtlFile,
 		    read( fid_in, rec=t, v )
 		end
 		
-                write( fid_out, rec=pos, v )
+		#println( typeof(v), " : ", size(v) )
+		# scale/offset
+		if scale_factor != 1.0 || add_offset != 0.0
+		    vtmp = Float32.( v .* scale_factor .+ add_offset )
+		    vtmp[v .== undef_val] .= -9.99f+34
+		    v = copy(vtmp)
+#		    println(typeof(v), " : ", size(v))
+		end
+#    scale_factor = 1.0
+#    add_offset = 0.0
+#    undef_val = ""
+                # write/store
+		if action == "array"
+		    #cat( vret, v; dims=4 )
+		    append!( vret, reshape(v,:) )
+		    #println( typeof(vret), " : ", size(vret) )
+		elseif action == "write"
+                    write( fid_out, rec=pos, v )
+		end
 		pos = pos + 1
 	    end
 	    tall = tall + 1
 	end  # loop: t
     end  # loop: chsub
-    
-    close( fid_out )
+
+    if action == "array"
+        return reshape( vret, gc.info["xdef"]["num"], gc.info["ydef"]["num"], gc.info["zdef"]["num"], : )
+    elseif action == "write"
+        close( fid_out )
+    end
 end
 
+gcslicewrite = gcslice  # alias
 
 
 end  # end of module

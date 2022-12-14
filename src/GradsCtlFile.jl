@@ -53,7 +53,7 @@ mutable struct GradsCtlFile
 	    # TODO: EDEF, VECTORPAIRS
 	    "vars" => Dict(
 	        "num" => 0,
-		"elem" => []  # Dict( "varname" > "",  )
+		"elem" => []  # Dict( "varname" > "", ... )
 	    )
 	    # TODO: ATTRIBUTE METADATA
         )
