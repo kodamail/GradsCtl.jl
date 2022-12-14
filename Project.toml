@@ -1,12 +1,13 @@
 name = "GradsCtl"
-uuid = "522c64fa-3d25-4ac4-afa9-2a91f0f5be03"
+uuid = "c5e13b30-28d0-45dd-8408-aa527b31eaef"
 authors = ["Chihiro Kodama"]
-version = "0.1.2"
+version = "0.1.3"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 FortranFiles = "c58ffaec-ab22-586d-bfc5-781a99fd0b10"
 NetCDF = "30363a11-5582-574a-97bb-aa9a979735b9"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 
 [compat]
 julia = "1.4.1"
