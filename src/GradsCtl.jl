@@ -314,17 +314,35 @@ function gcslice( gc::GradsCtlFile,
 
     if gc.info["tdef"]["interval_unit"] == "hr"
         dstep = Dates.value( datetime_start - datetime_ctl_start ) / 1000 / 60 / 60 / gc.info["tdef"]["interval"]
-        if dstep != floor(dstep)
-	    error( "Date of start does not exist in the data: $date_start" )
+#        println(dstep)
+	if dstep == ceil(dstep) && incflag_start == false
+            dstep = ceil(dstep) + 1
+	else
+            dstep = ceil(dstep)
 	end
-	t_start = ( ( incflag_start == true ) ? 1 : 2 ) + Int( dstep )
+#	println(dstep)
+#	error()
+#        if dstep != floor(dstep)
+#	    error( "Date of start does not exist in the data: $date_start" )
+#	end
+#	t_start = ( ( incflag_start == true ) ? 1 : 2 ) + Int( dstep )
+	t_start = Int( dstep ) + 1
 	println( t_start )
 
         dstep = Dates.value( datetime_end - datetime_ctl_start ) / 1000 / 60 / 60 / gc.info["tdef"]["interval"]
-        if dstep != floor(dstep)
-	    error( "Date of end does not exist in the data: $date_end" )
+#        println(dstep)
+	if dstep == floor(dstep) && incflag_end == false
+            dstep = floor(dstep) - 1
+	else
+            dstep = floor(dstep)
 	end
-	t_end = ( ( incflag_end == true ) ? 1 : 0 ) + Int( dstep )
+#	println(dstep)
+#	error()
+#        if dstep != floor(dstep)
+#	    error( "Date of end does not exist in the data: $date_end" )
+#	end
+#	t_end = ( ( incflag_end == true ) ? 1 : 0 ) + Int( dstep )
+	t_end = Int( dstep ) + 1
 	println( t_end )
     else
         error( "Non-supported time interval: ", gc.info["tdef"]["interval"] )
