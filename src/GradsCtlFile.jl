@@ -11,6 +11,7 @@ mutable struct GradsCtlFile
 	    "dset" => "",
 	    "chsub" => [],  # Dict( "start" => 0, "end" => 0, "str" => "" )
 	    # TODO: dtype, index, stnmap, title,
+	    "title" => "",
 	    "undef" => nothing,
 	    # TODO: unpack, fileheader, XYHEADER, XYTRAILER, THEADER, HEADERBYTES, TRAILERBYTES, XVAR, YVAR, ZVAR, STID, TVAR, TOFFVAR, CACHESIZE, 
             "options" => Dict(

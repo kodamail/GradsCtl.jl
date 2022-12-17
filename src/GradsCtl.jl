@@ -74,6 +74,12 @@ function gcopen( ctl_fname )
 	    continue
 	end
 
+        # TITLE
+        if occursin( r"^title"i, words[1] )
+	    gc.info["title"] = words[2]
+            continue
+	end
+
         # UNDEF
         if occursin( r"^undef"i, words[1] )
 	    gc.info["undef"] = parse( Float32, replace( words[2], r"f$" => "" ) )
