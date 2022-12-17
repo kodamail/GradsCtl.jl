@@ -80,6 +80,12 @@ function gcopen( ctl_fname )
             continue
 	end
 
+        # INDEX
+        if occursin( r"^index"i, words[1] )
+	    gc.info["index"] = words[2]
+            continue
+	end
+
         # TITLE
         if occursin( r"^title"i, words[1] )
 	    gc.info["title"] = words[2]
