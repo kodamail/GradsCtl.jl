@@ -56,7 +56,13 @@ mutable struct GradsCtlFile
 		"interval" => 0,
 		"interval_unit" => ""
 	    ),
-	    # TODO: EDEF, VECTORPAIRS
+            "edef" => Dict(
+	        "num"     => 0,
+		"ensname" => [],
+		"length"  => [],
+		"start"   => []
+	    ),
+	    # TODO: VECTORPAIRS
 	    "vars" => Dict(
 	        "num" => 0,
 		"elem" => []  # Dict( "varname" > "", ... )

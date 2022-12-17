@@ -63,6 +63,16 @@ function gcopen( ctl_fname )
 	        continue
 	    end
 	    
+        # EDEF
+        elseif mul_status == "edef" 
+            if occursin( r"^endedef"i, words[1] )
+	        mul_status = ""
+		continue
+	    end
+            push!( gc.info["edef"]["ensname"], words[1] )
+            push!( gc.info["edef"]["length"],  parse( Int, words[2] ) )
+            push!( gc.info["edef"]["start"],  words[3] )
+            continue
 	end
 
         #----- single-line or start of muti-line statement -----#
@@ -126,6 +136,24 @@ function gcopen( ctl_fname )
                 error( "Fail to analyze $dim: \"$line\"" )
 	    end
             continue
+	end
+
+        # EDEF
+        if occursin( r"^edef$"i, words[1] )
+            gc.info["edef"]["num"]  = parse( Int, words[2] )
+	    if length(words) < 3
+	        mul_status = "edef"
+		
+	    elseif occursin( r"^names$"i, words[3] )
+	        for word in words[4:end]
+	            push!( gc.info["edef"]["ensname"], word )
+	            push!( gc.info["edef"]["length"], -1 )
+	            push!( gc.info["edef"]["start"], "" )
+		end
+	    else
+                error( "Fail to analyze edef" )
+	    end
+	    continue
 	end
 
 	# TDEF
