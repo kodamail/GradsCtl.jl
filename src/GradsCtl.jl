@@ -145,14 +145,23 @@ function gcopen( ctl_fname )
 	# OPTIONS
         if occursin( r"^options"i, words[1] )
             for word in words[2:end]
-                if occursin( r"^template"i, word )
-                    gc.info["options"]["template"] = true
-		    continue
-		elseif occursin( r"^big_endian"i, word )
+		if occursin( r"^big_endian"i, word )
                     gc.info["options"]["endian"] = "big-endian"
 		    continue
 		elseif occursin( r"^little_endian"i, word )
                     gc.info["options"]["endian"] = "little-endian"
+		    continue
+                elseif occursin( r"^template"i, word )
+                    gc.info["options"]["template"] = true
+		    continue
+                elseif occursin( r"^yrev"i, word )
+                    gc.info["options"]["yrev"] = true
+		    continue
+                elseif occursin( r"^zrev"i, word )
+                    gc.info["options"]["zrev"] = true
+		    continue
+                elseif occursin( r"^365_day_calendar"i, word )
+                    gc.info["options"]["365_day_calendar"] = true
 		    continue
 		end
                 error( "\"$word\" is not supported in $words[1]")

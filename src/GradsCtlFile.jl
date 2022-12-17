@@ -17,8 +17,11 @@ mutable struct GradsCtlFile
 	    "undef" => nothing,
 	    # TODO: unpack, fileheader, XYHEADER, XYTRAILER, THEADER, HEADERBYTES, TRAILERBYTES, XVAR, YVAR, ZVAR, STID, TVAR, TOFFVAR, CACHESIZE, 
             "options" => Dict(
-	        "template" => false,
-		"endian"   => "native"
+		"endian"           => "native",
+	        "template"         => false,
+	        "yrev"             => false,
+	        "zrev"             => false,
+	        "365_day_calendar" => false
 	    ),
 	    #TODO: pdef
             "xdef" => Dict(
