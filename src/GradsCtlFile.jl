@@ -12,7 +12,7 @@ mutable struct GradsCtlFile
 	    "chsub" => [],  # Dict( "start" => 0, "end" => 0, "str" => "" )
 	    "dtype" => "",
 	    "index" => "",
-	    # TODO: index, stnmap
+	    "stnmap" => "",
 	    "title" => "",
 	    "undef" => nothing,
 	    # TODO: unpack, fileheader, XYHEADER, XYTRAILER, THEADER, HEADERBYTES, TRAILERBYTES, XVAR, YVAR, ZVAR, STID, TVAR, TOFFVAR, CACHESIZE, 

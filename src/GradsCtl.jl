@@ -86,6 +86,12 @@ function gcopen( ctl_fname )
             continue
 	end
 
+        # STNMAP
+        if occursin( r"^stnmap"i, words[1] )
+	    gc.info["stnmap"] = words[2]
+            continue
+	end
+
         # TITLE
         if occursin( r"^title"i, words[1] )
 	    gc.info["title"] = words[2]
