@@ -308,7 +308,7 @@ function gcslice( gc::GradsCtlFile,
 		  cal_range   ::String="",
 		  t_int       ::Integer=1,
 		  datetime_start::DateTime=DateTime(-1),
-		  datetime_end  ::DateTime=DateTime(-1,1,1),
+		  datetime_end  ::DateTime=DateTime(-1),
 		  # output file
 		  out_endian  ::String="native"    # "little-endian" or "big-endian"
 		)
