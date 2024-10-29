@@ -230,7 +230,7 @@ function gcopen( ctl_fname )
     #----- Check consistency -----#
     if length( gc.info["chsub"] ) > 0
         if gc.info["tdef"]["num"] != gc.info["chsub"][end]["end"]
-	    println( "Warning: The maximum timestep of CHSUB (", gc.info["chsub"][end]["end"], ") does not match the number of TDEF (", gc.info["tdef"]["num"], ")." )
+	    println( stderr, "Warning: The maximum timestep of CHSUB (", gc.info["chsub"][end]["end"], ") does not match the number of TDEF (", gc.info["tdef"]["num"], ")." )
 	end
     end
     
@@ -274,7 +274,7 @@ function gcopen( ctl_fname )
         # varname
 	for i=1:size(gc.info["vars"]["elem"],1)
 	    tmp = NetCDF.ncgetatt( dat_fname, gc.info["vars"]["elem"][i]["varname"], "scale_factor" )
-	    println(gc.info["vars"]["elem"][i])
+	    println( stderr, gc.info["vars"]["elem"][i] )
 	    if tmp != nothing
 	        gc.info["vars"]["elem"][i]["scale_factor"] = tmp
 	    end
@@ -394,7 +394,7 @@ function gcslice( gc::GradsCtlFile,
 #	end
 #	t_start = ( ( incflag_start == true ) ? 1 : 2 ) + Int( dstep )
 	t_start = Int( dstep ) + 1
-	println( t_start )
+	println( stderr, t_start )
 
         dstep = Dates.value( datetime_end - datetime_ctl_start ) / 1000 / 60 / 60 / gc.info["tdef"]["interval"]
 #        println(dstep)
@@ -410,7 +410,7 @@ function gcslice( gc::GradsCtlFile,
 #	end
 #	t_end = ( ( incflag_end == true ) ? 1 : 0 ) + Int( dstep )
 	t_end = Int( dstep ) + 1
-	println( t_end )
+	println( stderr, t_end )
     else
         error( "Non-supported time interval: ", gc.info["tdef"]["interval"] )
     end
@@ -456,11 +456,11 @@ function gcslice( gc::GradsCtlFile,
 	    end
 
             if tmin > 0 && tmax > 0
-                println(chsub)
-                println( "(absolute) tmin:", tmin, "  tmax:", tmax )
+                println( stderr, chsub )
+                println( stderr, "(absolute) tmin:", tmin, "  tmax:", tmax )
             tmin = tmin - chsub["start"] + 1  # absolute -> relative
 	        tmax = tmax - chsub["start"] + 1  # absolute -> relative
-                println( "(relative) tmin:", tmin, "  tmax:", tmax )
+                println( stderr, "(relative) tmin:", tmin, "  tmax:", tmax )
                 push!( str_array,  chsub["str"] )
 	        push!( tmin_array, tmin )
 	        push!( tmax_array, tmax )
@@ -479,7 +479,7 @@ function gcslice( gc::GradsCtlFile,
         vret = Array{Float32}( undef, 0 )
 #        vtmp = Array{Float32}( undef, gc.info["xdef"]["num"], gc.info["ydef"]["num"], gc.info["zdef"]["num"], 1 )
 	
-	println("ok: ", size(vret))
+	println( stderr, "ok: ", size(vret) )
     else
         action = "write"
         fid_out = FortranFile( out_fname, "w", access="direct", recl=4*gc.info["xdef"]["num"]*gc.info["ydef"]["num"]*gc.info["zdef"]["num"], convert=out_endian )
@@ -492,13 +492,13 @@ function gcslice( gc::GradsCtlFile,
         dir = replace( gc.fname, r"/[^/]+$" => "" )
         fname = replace( gc.info["dset"], r"%ch" => str )
         fname = replace( fname, r"^\^" => dir * "/" )
-        println( tmin, ", ", tmax, ", ", fname )
+        println( stderr, tmin, ", ", tmax, ", ", fname )
 
 	for t = tmin:tmax
 	    if (tall-1) % t_int == 0
 
                 # read
-                println( t, "(", tall, ")" )
+                println( stderr, t, "(", tall, ")" )
 		if gc.ftype == "NetCDF"
                     v = ncread( fname, varname, start=[1,1,1,t], count=[-1,-1,-1,1] )
 		else
