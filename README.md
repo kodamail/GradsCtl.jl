@@ -3,6 +3,13 @@
 ## Open control file
 
 ```julia
-gc = gcopen( input_ctl )
+gc = gcopen( ctl_fname )
 
 ```
+
+## Get information
+
+```julia
+gc.info["xdef"]["num"]  # The number of grids in X direction
+```
+
