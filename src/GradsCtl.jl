@@ -21,6 +21,8 @@ Open and analyze a GrADS control file
 function gcopen( ctl_fname )
     gc = GradsCtlFile( ctl_fname )
 
+    println("test test")
+
     #----- Analysis of control file -----#
 
     mul_status = ""  # status for multiple line statement
