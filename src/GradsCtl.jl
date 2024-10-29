@@ -21,8 +21,6 @@ Open and analyze a GrADS control file
 function gcopen( ctl_fname )
     gc = GradsCtlFile( ctl_fname )
 
-    println("test test")
-
     #----- Analysis of control file -----#
 
     mul_status = ""  # status for multiple line statement
@@ -303,17 +301,20 @@ Write sliced data to a file
 """
 function gcslice( gc::GradsCtlFile,
     	          varname::String,
-    	          out_fname::String="";
+    	          out_fname   ::String="";
 		  #----- optional -----#
 		  # time
-		  ymd_range::String="",
-		  cal_range::String="",
-		  t_int::Integer=1,
+		  ymd_range   ::String="",
+		  cal_range   ::String="",
+		  t_int       ::Integer=1,
+		  datetime_start::DateTime=DateTime(-1),
+		  datetime_end  ::DateTime=DateTime(-1,1,1),
 		  # output file
-		  out_endian::String="native"    # "little-endian" or "big-endian"
+		  out_endian  ::String="native"    # "little-endian" or "big-endian"
 		)
 
     #-----Analyze argument -----#
+#    println(datetime_start)
 
     # resolve variable
     scale_factor = 1.0f0
@@ -349,7 +350,10 @@ function gcslice( gc::GradsCtlFile,
         datetime_end   = DateTime( m[:date_end]*m[:hms_end], dateformat"yyyymmddHHMMSS" )
         incflag_start = m[:incflag_start] == "(" ? false : true
         incflag_end   = m[:incflag_end]   == ")" ? false : true
-        
+
+    elseif datetime_start >= DateTime(0) && datetime_end >= datetime_start
+        incflag_start = true
+        incflag_end   = true
     else
 	error("Time range is not specified.")
     end
